@@ -42,7 +42,4 @@ open ~/Applications/Peek\ for\ Codex.app
 - Stores app preferences such as refresh timing and credits visibility locally
 - Uses a user LaunchAgent for launch at login
 
-## Limitations
-
-- Peek for Codex relies on an internal Codex app-server protocol, not a public stable CLI command
-- If OpenAI changes that protocol, Peek for Codex may need an update
+If you find Peek for Codex useful, consider starring the repo on GitHub
