@@ -1,10 +1,18 @@
 import Foundation
 
 actor CodexAppServerClient {
+    private enum Limits {
+        static let requestTimeout: Duration = .seconds(15)
+        static let maxStdoutBufferBytes = 256 * 1024
+        static let maxStderrBufferBytes = 64 * 1024
+    }
+
     enum ClientError: LocalizedError {
         case codexNotFound
         case appServerUnavailable(String)
         case requestFailed(String)
+        case requestTimedOut
+        case outputOverflow(String)
         case invalidResponse
         case decodeFailed(String)
 
@@ -15,6 +23,10 @@ actor CodexAppServerClient {
             case .appServerUnavailable(let message):
                 return message
             case .requestFailed(let message):
+                return message
+            case .requestTimedOut:
+                return "The Codex app-server did not respond in time."
+            case .outputOverflow(let message):
                 return message
             case .invalidResponse:
                 return "The Codex app-server returned an invalid response."
@@ -118,6 +130,7 @@ actor CodexAppServerClient {
     private var stdoutBuffer = Data()
     private var stderrBuffer = Data()
     private var pendingContinuations: [String: CheckedContinuation<Data, Error>] = [:]
+    private var timeoutTasks: [String: Task<Void, Never>] = [:]
     private var notificationHandler: (@Sendable (RateLimitSnapshot) -> Void)?
     private var nextRequestID = 0
     private var initialized = false
@@ -203,6 +216,8 @@ actor CodexAppServerClient {
         stdoutBuffer = Data()
         stderrBuffer = Data()
         pendingContinuations = [:]
+        timeoutTasks.values.forEach { $0.cancel() }
+        timeoutTasks = [:]
         initialized = false
 
         let params = InitializeParams(
@@ -241,6 +256,10 @@ actor CodexAppServerClient {
 
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
             pendingContinuations[requestID] = continuation
+            timeoutTasks[requestID] = Task { [weak self] in
+                try? await Task.sleep(for: Limits.requestTimeout)
+                await self?.handleRequestTimeout(id: requestID)
+            }
 
             do {
                 var line = payload
@@ -248,6 +267,7 @@ actor CodexAppServerClient {
                 try stdin.fileHandleForWriting.write(contentsOf: line)
             } catch {
                 pendingContinuations.removeValue(forKey: requestID)
+                cancelTimeout(for: requestID)
                 continuation.resume(throwing: error)
             }
         }
@@ -256,12 +276,28 @@ actor CodexAppServerClient {
     private func consumeStdout(_ data: Data) async {
         guard !data.isEmpty else { return }
         stdoutBuffer.append(data)
+
+        if stdoutBuffer.count > Limits.maxStdoutBufferBytes {
+            await failProcess(
+                with: ClientError.outputOverflow("The Codex app-server produced too much output without a complete response.")
+            )
+            return
+        }
+
         await drainStdoutLines()
     }
 
     private func consumeStderr(_ data: Data) async {
         guard !data.isEmpty else { return }
         stderrBuffer.append(data)
+
+        if stderrBuffer.count > Limits.maxStderrBufferBytes {
+            await failProcess(
+                with: ClientError.outputOverflow("The Codex app-server produced too much error output without a newline.")
+            )
+            return
+        }
+
         drainStderrLines()
     }
 
@@ -303,6 +339,8 @@ actor CodexAppServerClient {
             return
         }
 
+        cancelTimeout(for: id)
+
         if let error = response.error {
             continuation.resume(throwing: ClientError.requestFailed(error.message))
             return
@@ -326,6 +364,16 @@ actor CodexAppServerClient {
         return try decoder.decode(T.self, from: data)
     }
 
+    private func handleRequestTimeout(id: String) async {
+        guard let continuation = pendingContinuations.removeValue(forKey: id) else {
+            return
+        }
+
+        cancelTimeout(for: id)
+        continuation.resume(throwing: ClientError.requestTimedOut)
+        await stopProcess()
+    }
+
     private func handleTermination(_ process: Process) async {
         let stderr = String(data: stderrBuffer, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let message = stderr?.isEmpty == false ? stderr! : "The Codex app-server exited unexpectedly."
@@ -334,12 +382,51 @@ actor CodexAppServerClient {
             continuation.resume(throwing: ClientError.appServerUnavailable(message))
         }
 
+        clearPendingRequests()
+        resetProcessState()
+    }
+
+    private func failProcess(with error: ClientError) async {
+        for continuation in pendingContinuations.values {
+            continuation.resume(throwing: error)
+        }
+
+        clearPendingRequests()
+        await stopProcess()
+    }
+
+    private func cancelTimeout(for requestID: String) {
+        timeoutTasks.removeValue(forKey: requestID)?.cancel()
+    }
+
+    private func clearPendingRequests() {
         pendingContinuations.removeAll()
+        timeoutTasks.values.forEach { $0.cancel() }
+        timeoutTasks.removeAll()
+    }
+
+    private func resetProcessState() {
+        stdoutPipe?.fileHandleForReading.readabilityHandler = nil
+        stderrPipe?.fileHandleForReading.readabilityHandler = nil
         stdinPipe = nil
         stdoutPipe = nil
         stderrPipe = nil
-        self.process = nil
+        stdoutBuffer = Data()
+        stderrBuffer = Data()
+        process = nil
         initialized = false
+    }
+
+    private func stopProcess() async {
+        stdoutPipe?.fileHandleForReading.readabilityHandler = nil
+        stderrPipe?.fileHandleForReading.readabilityHandler = nil
+        process?.terminationHandler = nil
+
+        if process?.isRunning == true {
+            process?.terminate()
+        }
+
+        resetProcessState()
     }
 }
 

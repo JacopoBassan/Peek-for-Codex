@@ -2,6 +2,8 @@ import AppKit
 import Foundation
 
 enum CodexLocator {
+    private static let codexBundleIdentifier = "com.openai.codex"
+
     static func cliURL() -> URL? {
         for candidate in cliCandidates() {
             if FileManager.default.isExecutableFile(atPath: candidate.path) {
@@ -15,7 +17,7 @@ enum CodexLocator {
     static func appURL() -> URL? {
         let workspace = NSWorkspace.shared
 
-        if let bundleURL = workspace.urlForApplication(withBundleIdentifier: "com.openai.codex") {
+        if let bundleURL = workspace.urlForApplication(withBundleIdentifier: codexBundleIdentifier) {
             return bundleURL
         }
 
@@ -26,23 +28,43 @@ enum CodexLocator {
                 .appendingPathComponent("Codex.app", isDirectory: true),
         ]
 
-        return candidates.first { FileManager.default.fileExists(atPath: $0.path) }
+        return candidates.first(where: isVerifiedCodexApp(at:))
     }
 
     private static func cliCandidates() -> [URL] {
-        let pathEntries = (ProcessInfo.processInfo.environment["PATH"] ?? "")
+        var candidates: [URL] = []
+
+        if let appURL = appURL() {
+            candidates.append(contentsOf: bundledCLICandidates(in: appURL))
+        }
+
+        candidates.append(contentsOf: [
+            "/opt/homebrew/bin/codex",
+            "/usr/local/bin/codex",
+            "/usr/bin/codex",
+            "/bin/codex",
+        ].map(URL.init(fileURLWithPath:)))
+
+        let pathCandidates = (ProcessInfo.processInfo.environment["PATH"] ?? "")
             .split(separator: ":")
             .map(String.init)
             .filter { !$0.isEmpty }
+            .map { URL(fileURLWithPath: $0, isDirectory: true).appendingPathComponent("codex") }
 
-        let standardPaths = [
-            "/opt/homebrew/bin",
-            "/usr/local/bin",
-            "/usr/bin",
-            "/bin",
+        candidates.append(contentsOf: pathCandidates)
+
+        var seenPaths = Set<String>()
+        return candidates.filter { seenPaths.insert($0.path).inserted }
+    }
+
+    private static func bundledCLICandidates(in appURL: URL) -> [URL] {
+        [
+            appURL.appendingPathComponent("Contents/Resources/codex", isDirectory: false),
+            appURL.appendingPathComponent("Contents/MacOS/codex", isDirectory: false),
         ]
+    }
 
-        let searchPaths = Array(NSOrderedSet(array: pathEntries + standardPaths)).compactMap { $0 as? String }
-        return searchPaths.map { URL(fileURLWithPath: $0, isDirectory: true).appendingPathComponent("codex") }
+    private static func isVerifiedCodexApp(at url: URL) -> Bool {
+        Bundle(url: url)?.bundleIdentifier == codexBundleIdentifier
     }
 }
