@@ -43,3 +43,7 @@ open ~/Applications/Peek\ for\ Codex.app
 - Uses a user LaunchAgent for launch at login
 
 If you find Peek for Codex useful, consider starring the repo on GitHub
+
+---
+
+Crafted with Codex
