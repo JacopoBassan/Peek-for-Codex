@@ -13,6 +13,7 @@ final class UsageBarModel: ObservableObject {
     @Published private(set) var isRefreshing = false
     @Published private(set) var nextRefreshAt: Date?
     @Published private(set) var errorMessage: String?
+    @Published private(set) var refreshSubtitleOverride: String?
     @Published private(set) var launchAtLoginEnabled = false
     @Published private(set) var launchAtLoginAvailable = false
     @Published private(set) var launchAtLoginMessage: String?
@@ -98,7 +99,12 @@ final class UsageBarModel: ObservableObject {
             applySnapshot(try await client.fetchRateLimits())
             nextRefreshAt = Date().addingTimeInterval(refreshInterval.seconds)
         } catch {
-            errorMessage = error.localizedDescription
+            let presentation = UsageFormatting.refreshErrorPresentation(for: error)
+            errorMessage = presentation.message
+            refreshSubtitleOverride = presentation.subtitleOverride
+            nextRefreshAt = presentation.subtitleOverride == nil
+                ? Date().addingTimeInterval(refreshInterval.seconds)
+                : nil
         }
 
         isRefreshing = false
@@ -137,6 +143,7 @@ final class UsageBarModel: ObservableObject {
     private func applySnapshot(_ snapshot: RateLimitSnapshot) {
         self.snapshot = snapshot
         errorMessage = nil
+        refreshSubtitleOverride = nil
     }
 
     private func syncLaunchAtLoginState() {

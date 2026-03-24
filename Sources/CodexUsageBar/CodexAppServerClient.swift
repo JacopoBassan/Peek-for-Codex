@@ -221,7 +221,7 @@ actor CodexAppServerClient {
         initialized = false
 
         let params = InitializeParams(
-            clientInfo: .init(name: "PeekForCodex", title: "Peek for Codex", version: "0.1.0"),
+            clientInfo: .init(name: "PeekForCodex", title: "Peek for Codex", version: "0.1.1"),
             capabilities: .init(experimentalApi: true)
         )
 

@@ -159,6 +159,13 @@ final class NativePopoverViewController: NSViewController {
                 self?.updateUI()
             }
             .store(in: &cancellables)
+
+        model.$refreshSubtitleOverride
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.updateSubtitle()
+            }
+            .store(in: &cancellables)
     }
 
     private func startRelativeTimeTimer() {
@@ -192,7 +199,8 @@ final class NativePopoverViewController: NSViewController {
     private func updateSubtitle() {
         subtitleLabel.stringValue = UsageFormatting.refreshSubtitle(
             isRefreshing: model.isRefreshing,
-            nextRefreshAt: model.nextRefreshAt
+            nextRefreshAt: model.nextRefreshAt,
+            subtitleOverride: model.refreshSubtitleOverride
         )
     }
 
