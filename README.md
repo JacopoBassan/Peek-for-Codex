@@ -16,6 +16,8 @@ Peek for Codex is a lightweight native macOS menu bar app that keeps your Codex 
 - Launch at login support
 - Simple install: clone the repo and run one script
 
+If you find Peek for Codex useful, consider starring the repo on GitHub
+
 ## Requirements
 
 - macOS 14 Sonoma or later
@@ -42,7 +44,22 @@ open ~/Applications/Peek\ for\ Codex.app
 - Stores app preferences such as refresh timing and credits visibility locally
 - Uses a user LaunchAgent for launch at login
 
-If you find Peek for Codex useful, consider starring the repo on GitHub
+## Changelog
+
+### 0.1.0
+
+- Initial public release
+
+### 0.1.1
+
+- Better expired-session handling
+- Clearer popup errors
+
+### 0.1.2
+
+- Cleaner popup architecture
+- Smarter popup refresh behavior
+- Better Codex app-server error handling
 
 ---
 

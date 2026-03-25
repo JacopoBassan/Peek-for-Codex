@@ -221,7 +221,7 @@ actor CodexAppServerClient {
         initialized = false
 
         let params = InitializeParams(
-            clientInfo: .init(name: "PeekForCodex", title: "Peek for Codex", version: "0.1.1"),
+            clientInfo: .init(name: "PeekForCodex", title: "Peek for Codex", version: "0.1.2"),
             capabilities: .init(experimentalApi: true)
         )
 
@@ -290,15 +290,9 @@ actor CodexAppServerClient {
     private func consumeStderr(_ data: Data) async {
         guard !data.isEmpty else { return }
         stderrBuffer.append(data)
-
         if stderrBuffer.count > Limits.maxStderrBufferBytes {
-            await failProcess(
-                with: ClientError.outputOverflow("The Codex app-server produced too much error output without a newline.")
-            )
-            return
+            stderrBuffer = Data(stderrBuffer.suffix(Limits.maxStderrBufferBytes))
         }
-
-        drainStderrLines()
     }
 
     private func drainStdoutLines() async {
@@ -308,12 +302,6 @@ actor CodexAppServerClient {
 
             guard !lineData.isEmpty else { continue }
             await handleStdoutLine(Data(lineData))
-        }
-    }
-
-    private func drainStderrLines() {
-        while let newline = stderrBuffer.firstIndex(of: 0x0A) {
-            stderrBuffer.removeSubrange(...newline)
         }
     }
 

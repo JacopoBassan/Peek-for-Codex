@@ -40,8 +40,18 @@ final class NativePopoverViewController: NSViewController {
         super.viewDidLoad()
         configureUI()
         bindModel()
-        startRelativeTimeTimer()
         updateUI()
+    }
+
+    override func viewWillAppear() {
+        super.viewWillAppear()
+        startRelativeTimeTimer()
+        updateSubtitle()
+    }
+
+    override func viewDidDisappear() {
+        super.viewDidDisappear()
+        stopRelativeTimeTimer()
     }
 
     private func configureUI() {
@@ -159,16 +169,11 @@ final class NativePopoverViewController: NSViewController {
                 self?.updateUI()
             }
             .store(in: &cancellables)
-
-        model.$refreshSubtitleOverride
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.updateSubtitle()
-            }
-            .store(in: &cancellables)
     }
 
     private func startRelativeTimeTimer() {
+        guard relativeTimeTimer == nil else { return }
+
         relativeTimeTimer = Timer.scheduledTimer(withTimeInterval: UIStyle.Refresh.subtitleTimerInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.updateSubtitle()
@@ -177,13 +182,18 @@ final class NativePopoverViewController: NSViewController {
         RunLoop.main.add(relativeTimeTimer!, forMode: .common)
     }
 
+    private func stopRelativeTimeTimer() {
+        relativeTimeTimer?.invalidate()
+        relativeTimeTimer = nil
+    }
+
     private func updateUI() {
-        updateSubtitle()
+        let presentation = model.popoverPresentation
 
         refreshButton.title = model.isRefreshing ? "Refreshing..." : "Refresh"
         refreshButton.isEnabled = !model.isRefreshing
 
-        if let error = model.errorMessage, !error.isEmpty {
+        if let error = presentation.errorMessage, !error.isEmpty {
             errorLabel.isHidden = false
             errorLabel.stringValue = error
         } else {
@@ -191,29 +201,26 @@ final class NativePopoverViewController: NSViewController {
             errorLabel.stringValue = ""
         }
 
-        rebuildCredits()
-        rebuildWindows()
+        updateSubtitle()
+        rebuildCredits(using: presentation.creditsSection)
+        rebuildWindows(using: presentation)
         updatePreferredContentSize()
     }
 
     private func updateSubtitle() {
-        subtitleLabel.stringValue = UsageFormatting.refreshSubtitle(
-            isRefreshing: model.isRefreshing,
-            nextRefreshAt: model.nextRefreshAt,
-            subtitleOverride: model.refreshSubtitleOverride
-        )
+        subtitleLabel.stringValue = model.subtitleText
     }
 
-    private func rebuildWindows() {
+    private func rebuildWindows(using presentation: PopoverPresentation) {
         windowsStack.arrangedSubviews.forEach { subview in
             windowsStack.removeArrangedSubview(subview)
             subview.removeFromSuperview()
         }
 
-        let windows = model.displayWindows
+        let windows = presentation.windowSections
 
         if windows.isEmpty {
-            let emptyLabel = NSTextField(labelWithString: "No Codex rate-limit windows available yet.")
+            let emptyLabel = NSTextField(labelWithString: presentation.emptyStateMessage ?? "No Codex rate-limit windows available yet.")
             emptyLabel.font = .preferredFont(forTextStyle: .body)
             emptyLabel.textColor = .secondaryLabelColor
             windowsStack.addArrangedSubview(emptyLabel)
@@ -234,26 +241,23 @@ final class NativePopoverViewController: NSViewController {
         }
     }
 
-    private func rebuildCredits() {
+    private func rebuildCredits(using presentation: PopoverCreditsPresentation?) {
         creditsStack.arrangedSubviews.forEach { subview in
             creditsStack.removeArrangedSubview(subview)
             subview.removeFromSuperview()
         }
 
-        let planType = model.snapshot?.planType?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let showsPlan = !planType.isEmpty
-
-        guard model.showsCreditsInPopup || showsPlan else {
+        guard let presentation else {
             creditsDivider.isHidden = true
             creditsStack.isHidden = true
             return
         }
 
-        if model.showsCreditsInPopup {
-            let title = NSTextField(labelWithString: "Credits")
+        if let titleText = presentation.title, let valueText = presentation.valueText {
+            let title = NSTextField(labelWithString: titleText)
             title.font = .preferredFont(forTextStyle: .headline)
 
-            let value = NSTextField(labelWithString: model.snapshot?.credits?.popupDisplayValue ?? "0")
+            let value = NSTextField(labelWithString: valueText)
             value.font = .preferredFont(forTextStyle: .body)
 
             let header = NSStackView(views: [title, spacer(), value])
@@ -266,15 +270,15 @@ final class NativePopoverViewController: NSViewController {
             header.widthAnchor.constraint(equalTo: creditsStack.widthAnchor).isActive = true
         }
 
-        if showsPlan {
-            let plan = NSTextField(labelWithString: "Plan: \(planType)")
+        if let planText = presentation.planText {
+            let plan = NSTextField(labelWithString: planText)
             plan.font = .preferredFont(forTextStyle: .caption1)
             plan.textColor = .secondaryLabelColor
             plan.maximumNumberOfLines = 0
             creditsStack.addArrangedSubview(plan)
             plan.widthAnchor.constraint(equalTo: creditsStack.widthAnchor).isActive = true
 
-            if model.showsCreditsInPopup, let header = creditsStack.arrangedSubviews.first {
+            if presentation.valueText != nil, let header = creditsStack.arrangedSubviews.first {
                 creditsStack.setCustomSpacing(UIStyle.Popover.barToResetSpacing, after: header)
             }
         }
@@ -283,11 +287,11 @@ final class NativePopoverViewController: NSViewController {
         creditsStack.isHidden = false
     }
 
-    private func makeWindowRow(_ window: DisplayWindow) -> NSView {
-        let title = NSTextField(labelWithString: window.popupLabel)
+    private func makeWindowRow(_ window: PopoverWindowPresentation) -> NSView {
+        let title = NSTextField(labelWithString: window.title)
         title.font = .preferredFont(forTextStyle: .headline)
 
-        let value = NSTextField(labelWithString: UsageFormatting.popupValue(for: window))
+        let value = NSTextField(labelWithString: window.valueText)
         value.font = .preferredFont(forTextStyle: .body)
 
         let header = NSStackView(views: [title, spacer(), value])
@@ -296,11 +300,11 @@ final class NativePopoverViewController: NSViewController {
         header.spacing = UIStyle.Popover.headerSpacing
         header.translatesAutoresizingMaskIntoConstraints = false
 
-        let progress = NativeWhiteProgressBar(value: max(0, min(1, 1.0 - (window.usedPercent / 100.0))))
+        let progress = NativeWhiteProgressBar(value: window.progressValue)
         progress.translatesAutoresizingMaskIntoConstraints = false
         progress.heightAnchor.constraint(equalToConstant: UIStyle.Popover.progressHeight).isActive = true
 
-        let reset = NSTextField(labelWithString: UsageFormatting.popupResetString(for: window))
+        let reset = NSTextField(labelWithString: window.resetText)
         reset.font = .preferredFont(forTextStyle: .caption1)
         reset.textColor = .secondaryLabelColor
         reset.maximumNumberOfLines = 0

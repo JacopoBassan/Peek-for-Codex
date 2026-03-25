@@ -53,6 +53,48 @@ final class UsageBarModel: ObservableObject {
         snapshot?.displayWindows ?? []
     }
 
+    var subtitleText: String {
+        UsageFormatting.refreshSubtitle(
+            isRefreshing: isRefreshing,
+            nextRefreshAt: nextRefreshAt,
+            subtitleOverride: refreshSubtitleOverride
+        )
+    }
+
+    var popoverPresentation: PopoverPresentation {
+        let windowSections = displayWindows.map { window in
+            PopoverWindowPresentation(
+                id: window.id,
+                title: window.popupLabel,
+                valueText: UsageFormatting.popupValue(for: window),
+                progressValue: max(0, min(1, 1.0 - (window.usedPercent / 100.0))),
+                resetText: UsageFormatting.popupResetString(for: window)
+            )
+        }
+
+        let planType = snapshot?.planType?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let planText = planType.isEmpty ? nil : "Plan: \(planType)"
+        let creditsValue = showsCreditsInPopup ? snapshot?.credits?.popupDisplayValue ?? "0" : nil
+
+        let creditsSection: PopoverCreditsPresentation?
+        if creditsValue != nil || planText != nil {
+            creditsSection = PopoverCreditsPresentation(
+                title: creditsValue != nil ? "Credits" : nil,
+                valueText: creditsValue,
+                planText: planText
+            )
+        } else {
+            creditsSection = nil
+        }
+
+        return PopoverPresentation(
+            windowSections: windowSections,
+            creditsSection: creditsSection,
+            errorMessage: errorMessage,
+            emptyStateMessage: windowSections.isEmpty ? "No Codex rate-limit windows available yet." : nil
+        )
+    }
+
     func start() {
         guard refreshTask == nil else { return }
 
