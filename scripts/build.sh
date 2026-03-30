@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-PRODUCT_NAME="CodexUsageBar"
+PRODUCT_NAME="PeekForCodex"
 APP_NAME="Peek for Codex.app"
 BUILD_CONFIGURATION="${BUILD_CONFIGURATION:-release}"
 VERSION="${VERSION:-0.1.2}"
@@ -15,7 +15,7 @@ MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 INFO_TEMPLATE="$ROOT_DIR/Support/Info.plist"
 INFO_PLIST="$CONTENTS_DIR/Info.plist"
-SOURCE_ICON="$ROOT_DIR/Resources/CodexUsageBar.icns"
+SOURCE_ICON="$ROOT_DIR/Resources/PeekForCodex.icns"
 
 mkdir -p "$ROOT_DIR/dist"
 
@@ -37,7 +37,7 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
 cp "$EXECUTABLE_PATH" "$MACOS_DIR/$PRODUCT_NAME"
 chmod +x "$MACOS_DIR/$PRODUCT_NAME"
-cp "$SOURCE_ICON" "$RESOURCES_DIR/CodexUsageBar.icns"
+cp "$SOURCE_ICON" "$RESOURCES_DIR/PeekForCodex.icns"
 
 sed \
     -e "s|__BUNDLE_IDENTIFIER__|$BUNDLE_IDENTIFIER|g" \

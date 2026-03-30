@@ -2,17 +2,17 @@
 import PackageDescription
 
 let package = Package(
-    name: "CodexUsageBar",
+    name: "PeekForCodex",
     platforms: [
         .macOS(.v14),
     ],
     products: [
-        .executable(name: "CodexUsageBar", targets: ["CodexUsageBar"]),
+        .executable(name: "PeekForCodex", targets: ["PeekForCodex"]),
     ],
     targets: [
         .executableTarget(
-            name: "CodexUsageBar",
-            path: "Sources/CodexUsageBar"
+            name: "PeekForCodex",
+            path: "Sources/PeekForCodex"
         ),
     ]
 )

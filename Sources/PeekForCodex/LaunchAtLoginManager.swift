@@ -30,6 +30,10 @@ final class LaunchAtLoginManager {
             )
         }
 
+        if launchAgentExists {
+            try? syncLaunchAgentIfNeeded(executableURL: executableURL)
+        }
+
         return State(
             isAvailable: true,
             isEnabled: launchAgentExists,
@@ -74,6 +78,18 @@ final class LaunchAtLoginManager {
         launchAgentExists(for: label)
     }
 
+    private func syncLaunchAgentIfNeeded(executableURL: URL) throws {
+        guard let configuredExecutablePath = configuredLaunchAgentExecutablePath() else {
+            return
+        }
+
+        guard configuredExecutablePath != executableURL.path else {
+            return
+        }
+
+        try writeLaunchAgent(label: label, executableURL: executableURL)
+    }
+
     private func installLaunchAgent() throws {
         guard let executableURL = Bundle.main.executableURL else {
             throw LaunchAtLoginError.bundleUnavailable
@@ -106,6 +122,18 @@ final class LaunchAtLoginManager {
             options: 0
         )
         try data.write(to: launchAgentURL(for: label), options: .atomic)
+    }
+
+    private func configuredLaunchAgentExecutablePath() -> String? {
+        guard let data = try? Data(contentsOf: launchAgentURL),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+              let arguments = plist["ProgramArguments"] as? [String],
+              let executablePath = arguments.first
+        else {
+            return nil
+        }
+
+        return executablePath
     }
 
     private func removeLaunchAgent(label: String) throws {
