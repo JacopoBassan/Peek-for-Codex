@@ -3,8 +3,6 @@ import SwiftUI
 
 @MainActor
 final class StatusBarController {
-    private static let appVersion = "0.1.2"
-
     private let model: UsageBarModel
     private let statusItem: NSStatusItem
     private let popover: NSPopover
@@ -57,7 +55,7 @@ final class StatusBarController {
     }
 
     private func configureContextMenu() {
-        let versionItem = NSMenuItem(title: "Peek for Codex \(Self.appVersion)", action: nil, keyEquivalent: "")
+        let versionItem = NSMenuItem(title: "Peek for Codex \(AppMetadata.shortVersion)", action: nil, keyEquivalent: "")
         versionItem.isEnabled = false
         contextMenu.addItem(versionItem)
         contextMenu.addItem(.separator())
