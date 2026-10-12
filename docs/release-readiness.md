@@ -2,6 +2,8 @@
 
 Release verification for 0.2.0 build 8. Local menu, update and single-instance checks pass. Apple accepted the signed universal installer for notarization. Its ticket is stapled, and the DMG passed Gatekeeper and checksum checks. The installed app is the same signed build. Signatures, notarization, Gatekeeper, the DMG checksum and the signed update feed were checked again on 12 October 2026. Installation on a separate Mac, Intel execution and macOS 14 runtime behavior remain unverified. These limits are disclosed in the release notes.
 
+[Version 0.2.0](https://github.com/JacopoBassan/Peek-for-Codex/releases/tag/v0.2.0) was published on 12 October 2026. Its source tag points to commit `8a60838`. The DMG, checksum and signed `appcast.xml` were uploaded and checked in a draft before the release became public.
+
 ## Source and menu
 
 - The native menu shows the Codex quota, reported plan, optional credits, reset countdown and exact date.
@@ -103,10 +105,18 @@ Eight simultaneous launches from two app paths left one running Peek process and
 
 Current receipts, reports and reproducible command logs are under `.build/verification/sparkle/`, including `updates/`, `signed-update/`, `update-menu/`, `single-instance/`, `live-single-instance.json`, `menu-build8/`, `installer-build8/` and `preview-build8/`. The previous installed app and release artifacts are retained in `before/`. The manual README screenshot is preserved; it predates the two update menu controls.
 
+## Public release delivery
+
+All three latest-release download links were fetched without authentication after publication. Their bytes match the verified local assets. The downloaded DMG passed deep signature verification, both architecture checks, notarization ticket validation, Gatekeeper, its SHA-256 checksum and the saved Finder layout check. This was checked on the development Mac; installation on a separate Mac remains unverified.
+
+The bundled Sparkle framework also checked the production GitHub feed in an isolated current-version host. It accepted the required signed feed and reported build 8 as up to date. The fixture disabled automatic updates and skipped any update offer. The installed app, its preferences and its launch-at-login path were not changed. This verifies the production feed check, not installation of a future release.
+
+Publication metadata, downloaded assets, installer results, a screenshot, and repeatable verification scripts are retained under `.build/verification/publication/`.
+
 ## Distribution checks still required
 
 1. Download the actual release artifact on a separate Mac. Verify normal opening, dragging to Applications, reading existing Codex usage, preferences, and quitting.
 2. Verify execution on Intel hardware and on the minimum supported macOS version. A universal build or Rosetta run does not establish those checks.
-3. Publish the DMG, checksum, signed `appcast.xml` and matching source update together after publication is approved. The feed references `v0.2.0`; the uploaded release tag must match. Both prepared latest-release links require the assets to be uploaded.
+3. Verify a complete Sparkle update through GitHub on a separate Mac when a newer signed release is available.
 
 Older builds without Sparkle need one manual replacement to gain automatic updates.
