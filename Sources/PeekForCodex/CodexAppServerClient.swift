@@ -30,8 +30,8 @@ actor CodexAppServerClient {
                 return message
             case .invalidResponse:
                 return "The Codex app-server returned an invalid response."
-            case .decodeFailed(let payload):
-                return "The rate-limit payload could not be decoded.\n\(payload)"
+            case .decodeFailed:
+                return "The rate-limit response could not be decoded."
             }
         }
     }
@@ -134,6 +134,8 @@ actor CodexAppServerClient {
     private var notificationHandler: (@Sendable (RateLimitSnapshot) -> Void)?
     private var nextRequestID = 0
     private var initialized = false
+    private var isStarting = false
+    private var startupWaiters: [CheckedContinuation<Void, Error>] = []
 
     func setNotificationHandler(_ handler: (@Sendable (RateLimitSnapshot) -> Void)?) {
         notificationHandler = handler
@@ -154,7 +156,8 @@ actor CodexAppServerClient {
             return response.rate_limits
         }
 
-        if let snapshot = try? decoder.decode(RateLimitSnapshot.self, from: data) {
+        if let snapshot = try? decoder.decode(RateLimitSnapshot.self, from: data),
+           snapshot.primary != nil || snapshot.secondary != nil || snapshot.credits != nil || snapshot.planType != nil {
             return snapshot
         }
 
@@ -166,6 +169,29 @@ actor CodexAppServerClient {
         if process?.isRunning == true, initialized {
             return
         }
+
+        if isStarting {
+            try await withCheckedThrowingContinuation { startupWaiters.append($0) }
+            return
+        }
+        isStarting = true
+        do {
+            try await startProcess()
+            isStarting = false
+            let waiters = startupWaiters
+            startupWaiters.removeAll()
+            waiters.forEach { $0.resume() }
+        } catch {
+            await stopProcess()
+            isStarting = false
+            let waiters = startupWaiters
+            startupWaiters.removeAll()
+            waiters.forEach { $0.resume(throwing: error) }
+            throw error
+        }
+    }
+
+    private func startProcess() async throws {
 
         guard let codexURL = CodexLocator.cliURL() else {
             throw ClientError.codexNotFound
@@ -230,7 +256,12 @@ actor CodexAppServerClient {
         }
 
         _ = try await sendRequest(method: "initialize", params: params) as InitializeResponse
+        try stdin.fileHandleForWriting.write(contentsOf: Data("{\"method\":\"initialized\"}\n".utf8))
         initialized = true
+    }
+
+    func shutdown() async {
+        await failProcess(with: .appServerUnavailable("The usage reader was closed."))
     }
 
     private func sendRequest<Params: Encodable, Response: Decodable>(
@@ -363,6 +394,7 @@ actor CodexAppServerClient {
     }
 
     private func handleTermination(_ process: Process) async {
+        guard self.process === process else { return }
         let stderr = String(data: stderrBuffer, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let message = stderr?.isEmpty == false ? stderr! : "The Codex app-server exited unexpectedly."
 

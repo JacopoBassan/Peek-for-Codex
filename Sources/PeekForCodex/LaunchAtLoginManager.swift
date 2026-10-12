@@ -12,6 +12,11 @@ final class LaunchAtLoginManager {
     }
 
     private let fileManager = FileManager.default
+    private let synchronizesExecutablePath: Bool
+
+    init(synchronizesExecutablePath: Bool = true) {
+        self.synchronizesExecutablePath = synchronizesExecutablePath
+    }
 
     func currentState() -> State {
         guard let executableURL = Bundle.main.executableURL, Bundle.main.bundleURL.pathExtension == "app" else {
@@ -30,7 +35,7 @@ final class LaunchAtLoginManager {
             )
         }
 
-        if launchAgentExists {
+        if launchAgentExists && synchronizesExecutablePath {
             try? syncLaunchAgentIfNeeded(executableURL: executableURL)
         }
 

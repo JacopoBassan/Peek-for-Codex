@@ -22,6 +22,9 @@ enum CodexLocator {
         }
 
         let candidates = [
+            FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("Applications/ChatGPT.app", isDirectory: true),
+            URL(fileURLWithPath: "/Applications/ChatGPT.app"),
             URL(fileURLWithPath: "/Applications/Codex.app"),
             FileManager.default.homeDirectoryForCurrentUser
                 .appendingPathComponent("Applications", isDirectory: true)
@@ -34,11 +37,16 @@ enum CodexLocator {
     private static func cliCandidates() -> [URL] {
         var candidates: [URL] = []
 
+        if let override = ProcessInfo.processInfo.environment["CODEX_CLI"], !override.isEmpty {
+            candidates.append(URL(fileURLWithPath: (override as NSString).expandingTildeInPath))
+        }
+
         if let appURL = appURL() {
             candidates.append(contentsOf: bundledCLICandidates(in: appURL))
         }
 
         candidates.append(contentsOf: [
+            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/codex").path,
             "/opt/homebrew/bin/codex",
             "/usr/local/bin/codex",
             "/usr/bin/codex",
@@ -59,6 +67,7 @@ enum CodexLocator {
 
     private static func bundledCLICandidates(in appURL: URL) -> [URL] {
         [
+            appURL.appendingPathComponent("Contents/Resources/codex-cli/bin/codex", isDirectory: false),
             appURL.appendingPathComponent("Contents/Resources/codex", isDirectory: false),
             appURL.appendingPathComponent("Contents/MacOS/codex", isDirectory: false),
         ]

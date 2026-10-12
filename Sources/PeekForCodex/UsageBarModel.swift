@@ -1,6 +1,6 @@
 import AppKit
 import Foundation
-import SwiftUI
+import Combine
 
 @MainActor
 final class UsageBarModel: ObservableObject {
@@ -11,8 +11,8 @@ final class UsageBarModel: ObservableObject {
 
     @Published private(set) var snapshot: RateLimitSnapshot?
     @Published private(set) var isRefreshing = false
-    @Published private(set) var nextRefreshAt: Date?
     @Published private(set) var errorMessage: String?
+    @Published private(set) var lastUpdatedAt: Date?
     @Published private(set) var refreshSubtitleOverride: String?
     @Published private(set) var launchAtLoginEnabled = false
     @Published private(set) var launchAtLoginAvailable = false
@@ -36,7 +36,7 @@ final class UsageBarModel: ObservableObject {
         self.refreshInterval = Self.loadRefreshInterval(from: defaults)
         self.showsCreditsInPopup = Self.loadShowsCreditsInPopup(from: defaults)
         syncLaunchAtLoginState()
-        Task {
+        Task { [weak self, client] in
             await client.setNotificationHandler { [weak self] snapshot in
                 Task { @MainActor in
                     self?.applySnapshot(snapshot)
@@ -53,48 +53,6 @@ final class UsageBarModel: ObservableObject {
         snapshot?.displayWindows ?? []
     }
 
-    var subtitleText: String {
-        UsageFormatting.refreshSubtitle(
-            isRefreshing: isRefreshing,
-            nextRefreshAt: nextRefreshAt,
-            subtitleOverride: refreshSubtitleOverride
-        )
-    }
-
-    var popoverPresentation: PopoverPresentation {
-        let windowSections = displayWindows.map { window in
-            PopoverWindowPresentation(
-                id: window.id,
-                title: window.popupLabel,
-                valueText: UsageFormatting.popupValue(for: window),
-                progressValue: max(0, min(1, 1.0 - (window.usedPercent / 100.0))),
-                resetText: UsageFormatting.popupResetString(for: window)
-            )
-        }
-
-        let planType = snapshot?.planType?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let planText = planType.isEmpty ? nil : "Plan: \(planType)"
-        let creditsValue = showsCreditsInPopup ? snapshot?.credits?.popupDisplayValue ?? "0" : nil
-
-        let creditsSection: PopoverCreditsPresentation?
-        if creditsValue != nil || planText != nil {
-            creditsSection = PopoverCreditsPresentation(
-                title: creditsValue != nil ? "Credits" : nil,
-                valueText: creditsValue,
-                planText: planText
-            )
-        } else {
-            creditsSection = nil
-        }
-
-        return PopoverPresentation(
-            windowSections: windowSections,
-            creditsSection: creditsSection,
-            errorMessage: errorMessage,
-            emptyStateMessage: windowSections.isEmpty ? "No Codex rate-limit windows available yet." : nil
-        )
-    }
-
     func start() {
         guard refreshTask == nil else { return }
 
@@ -106,7 +64,6 @@ final class UsageBarModel: ObservableObject {
 
         refreshInterval = option
         defaults.set(option.rawValue, forKey: StorageKey.refreshInterval)
-        nextRefreshAt = Date().addingTimeInterval(option.seconds)
 
         refreshTask?.cancel()
         refreshTask = nil
@@ -128,25 +85,23 @@ final class UsageBarModel: ObservableObject {
 
             while !Task.isCancelled {
                 let interval = refreshInterval.seconds
-                try? await Task.sleep(for: .seconds(interval))
+                do { try await Task.sleep(for: .seconds(interval)) }
+                catch { return }
                 await self.refresh()
             }
         }
     }
 
     func refresh() async {
+        guard !isRefreshing else { return }
         isRefreshing = true
 
         do {
             applySnapshot(try await client.fetchRateLimits())
-            nextRefreshAt = Date().addingTimeInterval(refreshInterval.seconds)
         } catch {
             let presentation = UsageFormatting.refreshErrorPresentation(for: error)
             errorMessage = presentation.message
             refreshSubtitleOverride = presentation.subtitleOverride
-            nextRefreshAt = presentation.subtitleOverride == nil
-                ? Date().addingTimeInterval(refreshInterval.seconds)
-                : nil
         }
 
         isRefreshing = false
@@ -184,6 +139,7 @@ final class UsageBarModel: ObservableObject {
 
     private func applySnapshot(_ snapshot: RateLimitSnapshot) {
         self.snapshot = snapshot
+        lastUpdatedAt = .now
         errorMessage = nil
         refreshSubtitleOverride = nil
     }

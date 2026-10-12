@@ -13,7 +13,7 @@ LAUNCH_AGENT_PLIST="$HOME/Library/LaunchAgents/$LAUNCH_AGENT_LABEL.plist"
 APP_EXECUTABLE="$TARGET_APP/Contents/MacOS/PeekForCodex"
 
 sync_launch_agent_if_needed() {
-    [[ -f "$LAUNCH_AGENT_PLIST" ]] || return
+    [[ -f "$LAUNCH_AGENT_PLIST" ]] || return 0
 
     plutil -replace ProgramArguments -json "[\"$APP_EXECUTABLE\"]" "$LAUNCH_AGENT_PLIST"
 }

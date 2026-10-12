@@ -5,6 +5,7 @@ struct RateLimitSnapshot: Decodable, Sendable {
     let secondary: RateLimitWindow?
     let credits: CreditsSnapshot?
     let planType: String?
+    let limitID: String?
 
     enum CodingKeys: String, CodingKey {
         case primary
@@ -12,6 +13,7 @@ struct RateLimitSnapshot: Decodable, Sendable {
         case credits
         case planType
         case plan_type
+        case limitId
     }
 
     init(primary: RateLimitWindow?, secondary: RateLimitWindow?, credits: CreditsSnapshot?, planType: String?) {
@@ -19,6 +21,7 @@ struct RateLimitSnapshot: Decodable, Sendable {
         self.secondary = secondary
         self.credits = credits
         self.planType = planType
+        self.limitID = nil
     }
 
     init(from decoder: Decoder) throws {
@@ -28,6 +31,7 @@ struct RateLimitSnapshot: Decodable, Sendable {
         credits = try container.decodeIfPresent(CreditsSnapshot.self, forKey: .credits)
         planType = try container.decodeIfPresent(String.self, forKey: .planType)
             ?? container.decodeIfPresent(String.self, forKey: .plan_type)
+        limitID = try container.decodeIfPresent(String.self, forKey: .limitId)
     }
 }
 
@@ -54,17 +58,8 @@ struct RateLimitWindow: Decodable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        if let value = try container.decodeIfPresent(Double.self, forKey: .usedPercent) {
-            usedPercent = value
-        } else if let value = try container.decodeIfPresent(Double.self, forKey: .used_percent) {
-            usedPercent = value
-        } else if let value = try container.decodeIfPresent(Int.self, forKey: .usedPercent) {
-            usedPercent = Double(value)
-        } else if let value = try container.decodeIfPresent(Int.self, forKey: .used_percent) {
-            usedPercent = Double(value)
-        } else {
-            usedPercent = 0
-        }
+        usedPercent = try container.decodeIfPresent(Double.self, forKey: .usedPercent)
+            ?? container.decode(Double.self, forKey: .used_percent)
 
         windowDurationMins = try container.decodeIfPresent(Int.self, forKey: .windowDurationMins)
             ?? container.decodeIfPresent(Int.self, forKey: .window_minutes)
@@ -126,6 +121,14 @@ extension CreditsSnapshot {
 
 struct GetAccountRateLimitsResponse: Decodable, Sendable {
     let rateLimits: RateLimitSnapshot
+
+    enum CodingKeys: String, CodingKey { case rateLimits, rateLimitsByLimitId }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let buckets = try container.decodeIfPresent([String: RateLimitSnapshot].self, forKey: .rateLimitsByLimitId)
+        rateLimits = try buckets?["codex"] ?? container.decode(RateLimitSnapshot.self, forKey: .rateLimits)
+    }
 }
 
 struct LegacyGetAccountRateLimitsResponse: Decodable, Sendable {
@@ -155,18 +158,7 @@ extension DisplayWindow {
         case isFiveHourWindow:
             return "5H"
         case isWeeklyWindow:
-            return "WK"
-        default:
-            return label.uppercased()
-        }
-    }
-
-    var popupLabel: String {
-        switch true {
-        case isFiveHourWindow:
-            return "5 Hours"
-        case isWeeklyWindow:
-            return "Week"
+            return "7D"
         default:
             return label.uppercased()
         }
@@ -183,12 +175,18 @@ extension DisplayWindow {
 
 extension RateLimitSnapshot {
     var displayWindows: [DisplayWindow] {
-        let windows = [primary, secondary].compactMap { $0 }
+        if let limitID, limitID.lowercased().contains("spark") || limitID.lowercased().contains("bengalfox") {
+            return []
+        }
+        let windows = [primary, secondary].compactMap { $0 }.filter {
+            guard let duration = $0.windowDurationMins else { return false }
+            return duration > 0 && abs(duration - 300) > 5 && $0.usedPercent.isFinite
+        }
         return windows
             .map { window in
                 let duration = window.windowDurationMins
                 let label = Self.label(for: duration)
-                let remaining = max(0, min(100, Int((100.0 - window.usedPercent).rounded())))
+                let remaining = Int((100 - max(0, min(100, window.usedPercent))).rounded())
 
                 return DisplayWindow(
                     id: "\(label)-\(duration ?? -1)",
@@ -202,19 +200,6 @@ extension RateLimitSnapshot {
             .sorted { lhs, rhs in
                 (lhs.durationMinutes ?? .max) < (rhs.durationMinutes ?? .max)
             }
-    }
-
-    var compactSummary: String {
-        let preferred = displayWindows.filter { $0.isFiveHourWindow || $0.isWeeklyWindow }
-        let windows = preferred.isEmpty ? Array(displayWindows.prefix(2)) : preferred
-
-        guard !windows.isEmpty else {
-            return "Codex"
-        }
-
-        return windows
-            .map { "\($0.label) \($0.remainingPercent)%" }
-            .joined(separator: " | ")
     }
 
     private static func label(for duration: Int?) -> String {
@@ -240,22 +225,5 @@ extension RateLimitSnapshot {
 
             return "\(duration)m"
         }
-    }
-}
-
-extension Date {
-    func codexUsageRelativeString() -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: "en_US")
-        formatter.unitsStyle = .full
-        return formatter.localizedString(for: self, relativeTo: .now)
-    }
-
-    func codexUsageAbsoluteString() -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US")
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: self)
     }
 }

@@ -1,0 +1,16 @@
+OpenAI Codex artwork
+
+The cloud silhouette is the outer contour of the Codex vector icon from
+OpenAI's desktop app (webview/assets/codex_new-f14177b03534.svg).
+The contour coordinates are preserved and uniformly scaled for display.
+
+Codex artwork and trademarks belong to OpenAI. Their use is subject to
+OpenAI's brand guidelines: https://openai.com/brand/
+Peek for Codex's MIT license does not grant rights to OpenAI's artwork
+or trademarks. Peek for Codex is an independent utility and is not
+affiliated with or endorsed by OpenAI.
+
+Sparkle update framework
+
+Sparkle is distributed under its own license. The complete notice is bundled
+in Sparkle-LICENSE.txt. Source: https://github.com/sparkle-project/Sparkle

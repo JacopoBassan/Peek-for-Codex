@@ -20,11 +20,17 @@
       "layers" : [
         {
           "blend-mode" : "normal",
-          "glass" : false,
-          "image-name" : ">_.svg",
-          "name" : ">_",
+          "fill" : {
+            "linear-gradient" : [
+              "extended-gray:1.00000,1.00000",
+              "display-p3:0.83945,0.83945,0.83945,1.00000"
+            ]
+          },
+          "glass" : true,
+          "image-name" : "codex-cloud.svg",
+          "name" : "Codex cloud",
           "position" : {
-            "scale" : 3,
+            "scale" : 0.75,
             "translation-in-points" : [
               0,
               0
@@ -34,11 +40,11 @@
       ],
       "shadow" : {
         "kind" : "neutral",
-        "opacity" : 0.5
+        "opacity" : 0.08
       },
       "translucency" : {
-        "enabled" : true,
-        "value" : 0.5
+        "enabled" : false,
+        "value" : 0
       }
     }
   ],

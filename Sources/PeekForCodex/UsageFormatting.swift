@@ -6,54 +6,22 @@ struct RefreshErrorPresentation {
 }
 
 enum UsageFormatting {
-    static func menuBarValue(for window: DisplayWindow) -> String {
-        "\(window.remainingPercent)%"
-    }
+    static func resetCountdownString(for resetDate: Date, now: Date = .now) -> String {
+        let remaining = resetDate.timeIntervalSince(now)
+        guard remaining.isFinite else { return "Reset time unavailable" }
+        guard remaining > 0 else { return "Reset pending" }
+        guard remaining >= 60 else { return "Resets in less than a minute" }
 
-    static func popupValue(for window: DisplayWindow) -> String {
-        "\(window.remainingPercent)% remaining"
-    }
-
-    static func popupResetString(for window: DisplayWindow) -> String {
-        guard let resetDate = window.resetDate else {
-            return "Reset time unavailable"
-        }
-
-        return "Resets \(resetDate.codexUsageRelativeString()) (\(resetDate.codexUsageAbsoluteString()))"
-    }
-
-    static func refreshSubtitle(isRefreshing: Bool, nextRefreshAt: Date?, subtitleOverride: String?) -> String {
-        if isRefreshing {
-            return "Refreshing..."
-        }
-
-        if let subtitleOverride, !subtitleOverride.isEmpty {
-            return subtitleOverride
-        }
-
-        guard let nextRefreshAt else {
-            return "Waiting for first refresh"
-        }
-
-        let remaining = max(0, Int(ceil(nextRefreshAt.timeIntervalSinceNow)))
-        return "Refresh in \(countdownString(seconds: remaining))"
-    }
-
-    static func countdownString(seconds: Int) -> String {
-        let hours = seconds / 3600
-        let minutes = seconds / 60
-        let secs = seconds % 60
-
-        if hours > 0 {
-            let remainingMinutes = (seconds % 3600) / 60
-            return "\(hours)h \(remainingMinutes)m"
-        }
-
-        if minutes > 0 {
-            return "\(minutes)m \(secs)s"
-        }
-
-        return "\(secs)s"
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = remaining >= 86_400 ? [.day, .hour]
+            : (remaining >= 3_600 ? [.hour, .minute] : [.minute])
+        formatter.unitsStyle = .full
+        formatter.zeroFormattingBehavior = .dropAll
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US")
+        formatter.calendar = calendar
+        guard let duration = formatter.string(from: remaining) else { return "Reset time unavailable" }
+        return "Resets in \(duration)"
     }
 
     static func refreshErrorPresentation(for error: Error) -> RefreshErrorPresentation {
