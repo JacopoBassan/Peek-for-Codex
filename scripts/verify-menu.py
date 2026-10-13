@@ -86,7 +86,7 @@ def main():
             env = dict(os.environ, CODEX_CLI=str(fixture), PEEK_VERIFY_CASE=name, PEEK_VERIFY_OFFSET=str(offset))
             started = time.monotonic()
             run = subprocess.run([str(executable), '--diagnose-usage', '-showCreditsInPopup', 'YES',
-                '-refreshIntervalSeconds', '180'], env=env, text=True, capture_output=True, timeout=25)
+                '-refreshIntervalSeconds', '180'], env=env, text=True, capture_output=True, timeout=40)
             elapsed = time.monotonic() - started
             if expected == 'failure':
                 assert run.returncode != 0, (name, 'Invalid response was accepted')

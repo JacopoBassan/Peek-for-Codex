@@ -92,6 +92,11 @@ Packaging uses SwiftPM's `--show-bin-path` to avoid installing a stale executabl
 
 ## Changelog
 
+### 0.2.2
+
+- Retry temporary usage failures once before clearing old quota data
+- Record safe error categories for direct diagnostics
+
 ### 0.2.1
 
 - Recover from expired reader sign-in using the existing Codex account

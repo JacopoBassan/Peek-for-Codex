@@ -1,8 +1,28 @@
 # Release checks
 
+## 0.2.2 refresh recovery
+
+The 0.2.2 build 10 fix was verified on 13 October 2026. The exact cause of the earlier temporary failure could not be recovered because that build did not retain error diagnostics. Fresh live usage reads succeeded.
+
+Peek now retries a temporary service, transport or timeout failure once before clearing the last quota. Service errors reuse the healthy reader. A timeout closes the failed reader, so the retry starts a fresh one. Authentication errors still restart the reader once to load the existing sign-in. Rate limiting does not trigger an immediate retry. Repeated failures clear the old quota and update time. Normal successful reads add no requests or delay.
+
+Error diagnostics use the macOS log subsystem `me.jacopobassan.peekforcodex`, category `usage`. They contain fixed error categories, numeric error codes and recovery results. They do not contain raw errors, account data, quota responses or credentials. This permits direct investigation without asking users to read a tooltip.
+
+Run from the repository root:
+
+```sh
+python3 scripts/verify-refresh.py --app "dist/release/Peek for Codex.app" --output .build/verification/refresh
+python3 scripts/verify-menu.py --app "dist/release/Peek for Codex.app" --output .build/verification/menu
+python3 scripts/verify-dmg.py --dmg dist/release/Peek-for-Codex.dmg --signed
+```
+
+All 11 native refresh workflows passed. They cover warm and cold authentication recovery, a status-only 401, an expired-sign-in JSON-RPC error, a real request timeout, persistent authentication failure, repeated service errors, healthy reuse, single service and transport failures, and rate limiting. The checks assert reader-start and request counts as well as menu content. The macOS log check confirms safe error categories and excludes raw fixture errors.
+
+All 16 packaged-app menu workflows passed. The universal installer passed Apple notarization, ticket, Gatekeeper, checksum, architecture and Finder layout checks. Feed and archive signatures match the embedded public key and build 10. The same signed app is installed locally. The previous app and installer are retained as backups. The manual README screenshot is unchanged. Commands, reports and receipts are retained under `.build/verification/retry-fix/`. These checks establish behavior and retry bounds, not a measured speed gain.
+
 ## 0.2.1 reader sign-in recovery
 
-The local 0.2.1 build 9 fix was verified on 13 October 2026. A long-lived reader could report an expired sign-in while a newly started reader still read usage through the existing Codex account. Peek previously kept the last successful quota visible after that error.
+The local 0.2.1 build 9 fix was verified on 13 October 2026. Its source tag is retained as a checkpoint; its prepared GitHub release was superseded by 0.2.2 before publication. A long-lived reader could report an expired sign-in while a newly started reader still read usage through the existing Codex account. Peek previously kept the last successful quota visible after that error.
 
 Authentication failures now trigger one retry with a fresh reader. The JSON-RPC error code is retained so an HTTP 401 is recognized even when its message only says "Unauthorized". Other failures do not restart a healthy reader. If refreshing still fails, the model clears the old snapshot and successful update time, and the menu shows usage as unavailable. No credentials are copied or exported.
 

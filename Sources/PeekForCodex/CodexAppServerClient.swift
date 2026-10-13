@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 actor CodexAppServerClient {
     private enum Limits {
@@ -32,6 +33,38 @@ actor CodexAppServerClient {
                 return "The Codex app-server returned an invalid response."
             case .decodeFailed:
                 return "The rate-limit response could not be decoded."
+            }
+        }
+
+        var isTransient: Bool {
+            switch self {
+            case .requestTimedOut, .appServerUnavailable:
+                return true
+            case .requestFailed(let code, let message):
+                if (500...599).contains(code) { return true }
+                guard code == -32603 else { return false }
+                let normalized = message.lowercased()
+                return ["connection reset", "connection refused", "timed out", "timeout",
+                    "temporarily unavailable", "service unavailable", "error sending request",
+                    "bad gateway", "gateway timeout"].contains { normalized.contains($0) }
+            default:
+                return false
+            }
+        }
+
+        // Log only fixed categories and numeric codes, never payloads or credentials.
+        var diagnosticName: String {
+            switch self {
+            case .codexNotFound: return "reader_not_found"
+            case .appServerUnavailable: return "reader_unavailable"
+            case .requestFailed(let code, _):
+                let category = UsageFormatting.isAuthenticationError(self) ? "authentication"
+                    : (isTransient ? "temporary_request" : "request_failed")
+                return "\(category)_\(code)"
+            case .requestTimedOut: return "request_timeout"
+            case .outputOverflow: return "output_limit"
+            case .invalidResponse: return "invalid_response"
+            case .decodeFailed: return "decode_failure"
             }
         }
     }
@@ -123,6 +156,7 @@ actor CodexAppServerClient {
 
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
+    private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "me.jacopobassan.peekforcodex", category: "usage")
     private var process: Process?
     private var stdinPipe: Pipe?
     private var stdoutPipe: Pipe?
@@ -144,11 +178,26 @@ actor CodexAppServerClient {
     func fetchRateLimits() async throws -> RateLimitSnapshot {
         do {
             return try await readRateLimits()
-        } catch let error as ClientError where UsageFormatting.isAuthenticationError(error) {
-            // A long-lived reader can retain credentials replaced by the desktop app.
-            // Restart once so the new reader loads the existing current sign-in.
-            await failProcess(with: error)
-            return try await readRateLimits()
+        } catch let error as ClientError {
+            logger.error("Usage read failed: \(error.diagnosticName, privacy: .public)")
+            if UsageFormatting.isAuthenticationError(error) {
+                // Restart once to load the existing current sign-in.
+                await failProcess(with: error)
+            } else if error.isTransient {
+                // Keep a healthy reader and allow a brief service failure to recover.
+                try await Task.sleep(for: .milliseconds(250))
+            } else {
+                throw error
+            }
+            try Task.checkCancellation()
+            do {
+                let snapshot = try await readRateLimits()
+                logger.notice("Usage read recovered after one retry")
+                return snapshot
+            } catch let retryError as ClientError {
+                logger.error("Usage retry failed: \(retryError.diagnosticName, privacy: .public)")
+                throw retryError
+            }
         }
     }
 

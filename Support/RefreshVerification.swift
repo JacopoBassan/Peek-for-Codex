@@ -30,14 +30,14 @@ struct RefreshVerification {
                     try require(rows[0][0] == "15%", "Initial quota was not loaded")
                     let updated = model.lastUpdatedAt
                     try require(NSApp.sendAction(refresh.action!, to: refresh.target, from: refresh), "Refresh menu action failed")
-                    let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+                    let deadline = ContinuousClock.now.advanced(by: .seconds(name == "warm-timeout" ? 20 : 10))
                     while model.lastUpdatedAt == updated && model.errorMessage == nil {
                         try require(ContinuousClock.now < deadline, "Refresh did not finish")
                         try await Task.sleep(for: .milliseconds(20))
                     }
                     while model.isRefreshing { try await Task.sleep(for: .milliseconds(20)) }
                     rows.append(controller.diagnostics())
-                    if name == "persistent-auth" || name == "network-failure" {
+                    if name == "persistent-auth" || name == "network-failure" || name == "rate-limit" {
                         try require(model.errorMessage != nil && model.snapshot == nil && model.lastUpdatedAt == nil,
                             "Failed refresh kept the old snapshot or successful update time")
                         try require(rows[1][0] == "—" && rows[1].contains("Usage unavailable"),
