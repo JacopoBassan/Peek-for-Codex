@@ -99,6 +99,8 @@ final class UsageBarModel: ObservableObject {
         do {
             applySnapshot(try await client.fetchRateLimits())
         } catch {
+            snapshot = nil
+            lastUpdatedAt = nil
             let presentation = UsageFormatting.refreshErrorPresentation(for: error)
             errorMessage = presentation.message
             refreshSubtitleOverride = presentation.subtitleOverride

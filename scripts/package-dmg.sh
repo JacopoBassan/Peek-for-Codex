@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-VERSION="${VERSION:-0.2.0}"
+VERSION="${VERSION:-0.2.1}"
 RELEASE_TAG="${RELEASE_TAG:-v$VERSION}"
 MODE=release
 case "${1:-}" in

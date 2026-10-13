@@ -1,6 +1,25 @@
 # Release checks
 
-Release verification for 0.2.0 build 8. Local menu, update and single-instance checks pass. Apple accepted the signed universal installer for notarization. Its ticket is stapled, and the DMG passed Gatekeeper and checksum checks. The installed app is the same signed build. Signatures, notarization, Gatekeeper, the DMG checksum and the signed update feed were checked again on 12 October 2026. Installation on a separate Mac, Intel execution and macOS 14 runtime behavior remain unverified. These limits are disclosed in the release notes.
+## 0.2.1 reader sign-in recovery
+
+The local 0.2.1 build 9 fix was verified on 13 October 2026. A long-lived reader could report an expired sign-in while a newly started reader still read usage through the existing Codex account. Peek previously kept the last successful quota visible after that error.
+
+Authentication failures now trigger one retry with a fresh reader. The JSON-RPC error code is retained so an HTTP 401 is recognized even when its message only says "Unauthorized". Other failures do not restart a healthy reader. If refreshing still fails, the model clears the old snapshot and successful update time, and the menu shows usage as unavailable. No credentials are copied or exported.
+
+Run from the repository root after building:
+
+```sh
+python3 scripts/verify-refresh.py
+python3 scripts/verify-menu.py
+```
+
+The seven refresh workflows use a disposable CLI, the real reader and model, and the native Refresh menu action. They cover warm expired sign-in, a status-only 401, an expired-sign-in JSON-RPC error, persistent authentication failure, an unrelated service failure, cold recovery and healthy reader reuse. Authentication recovery starts exactly two readers across the workflow; healthy reuse and service-error recovery use one. Persistent failure clears the old percentage, snapshot and update time. This verifies retry bounds and lifecycle behavior, not a measured speed gain.
+
+All seven refresh workflows and the 16 existing menu workflows passed. The universal 0.2.1 installer passed signing, Apple notarization, ticket, Gatekeeper, checksum, feed-signature and Finder layout checks. The fix is installed locally, with the previous app and release artifacts retained as backups. The manual README screenshot is preserved. Reports, commands and receipts are retained under `.build/verification/reset-fix/`. Release assets are the DMG, checksum and signed `appcast.xml`.
+
+## 0.2.0 publication
+
+Release verification for 0.2.0 build 8. Local menu, update and single-instance checks pass. Apple accepted the signed universal installer for notarization. Its ticket is stapled, and the DMG passed Gatekeeper and checksum checks. The app installed for that check was the same signed build. Signatures, notarization, Gatekeeper, the DMG checksum and the signed update feed were checked again on 12 October 2026. Installation on a separate Mac, Intel execution and macOS 14 runtime behavior remain unverified. These limits are disclosed in the release notes.
 
 [Version 0.2.0](https://github.com/JacopoBassan/Peek-for-Codex/releases/tag/v0.2.0) was published on 12 October 2026. Its source tag points to commit `8a60838`. The DMG, checksum and signed `appcast.xml` were uploaded and checked in a draft before the release became public.
 

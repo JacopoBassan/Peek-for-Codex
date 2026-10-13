@@ -26,14 +26,7 @@ enum UsageFormatting {
 
     static func refreshErrorPresentation(for error: Error) -> RefreshErrorPresentation {
         let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalized = message.lowercased()
-
-        if normalized.contains("token_expired")
-            || normalized.contains("provided authentication token is expired")
-            || normalized.contains("sign in again")
-            || normalized.contains("signing in again")
-            || (normalized.contains("401") && normalized.contains("unauthorized"))
-        {
+        if isAuthenticationError(error) {
             return RefreshErrorPresentation(
                 message: "Your Codex session expired. Open Codex, sign in again, then refresh.",
                 subtitleOverride: "Codex sign-in required"
@@ -44,6 +37,18 @@ enum UsageFormatting {
             message: condensedErrorMessage(message),
             subtitleOverride: nil
         )
+    }
+
+    static func isAuthenticationError(_ error: Error) -> Bool {
+        if case CodexAppServerClient.ClientError.requestFailed(let code, _) = error, code == 401 {
+            return true
+        }
+        let normalized = error.localizedDescription.lowercased()
+        return normalized.contains("token_expired")
+            || normalized.contains("provided authentication token is expired")
+            || normalized.contains("sign in again")
+            || normalized.contains("signing in again")
+            || (normalized.contains("401") && normalized.contains("unauthorized"))
     }
 
     private static func condensedErrorMessage(_ message: String) -> String {

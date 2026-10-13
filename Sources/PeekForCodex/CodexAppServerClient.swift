@@ -10,7 +10,7 @@ actor CodexAppServerClient {
     enum ClientError: LocalizedError {
         case codexNotFound
         case appServerUnavailable(String)
-        case requestFailed(String)
+        case requestFailed(code: Int, message: String)
         case requestTimedOut
         case outputOverflow(String)
         case invalidResponse
@@ -22,7 +22,7 @@ actor CodexAppServerClient {
                 return "The `codex` CLI was not found in PATH."
             case .appServerUnavailable(let message):
                 return message
-            case .requestFailed(let message):
+            case .requestFailed(_, let message):
                 return message
             case .requestTimedOut:
                 return "The Codex app-server did not respond in time."
@@ -142,6 +142,17 @@ actor CodexAppServerClient {
     }
 
     func fetchRateLimits() async throws -> RateLimitSnapshot {
+        do {
+            return try await readRateLimits()
+        } catch let error as ClientError where UsageFormatting.isAuthenticationError(error) {
+            // A long-lived reader can retain credentials replaced by the desktop app.
+            // Restart once so the new reader loads the existing current sign-in.
+            await failProcess(with: error)
+            return try await readRateLimits()
+        }
+    }
+
+    private func readRateLimits() async throws -> RateLimitSnapshot {
         try await ensureStarted()
         let data = try await sendRequestData(
             method: "account/rateLimits/read",
@@ -361,7 +372,7 @@ actor CodexAppServerClient {
         cancelTimeout(for: id)
 
         if let error = response.error {
-            continuation.resume(throwing: ClientError.requestFailed(error.message))
+            continuation.resume(throwing: ClientError.requestFailed(code: error.code, message: error.message))
             return
         }
 
