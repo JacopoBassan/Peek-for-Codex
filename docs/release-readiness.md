@@ -20,6 +20,10 @@ All 11 native refresh workflows passed. They cover warm and cold authentication 
 
 All 16 packaged-app menu workflows passed. The universal installer passed Apple notarization, ticket, Gatekeeper, checksum, architecture and Finder layout checks. Feed and archive signatures match the embedded public key and build 10. The same signed app is installed locally. The previous app and installer are retained as backups. The manual README screenshot is unchanged. Commands, reports and receipts are retained under `.build/verification/retry-fix/`. These checks establish behavior and retry bounds, not a measured speed gain.
 
+[Version 0.2.2](https://github.com/JacopoBassan/Peek-for-Codex/releases/tag/v0.2.2) was published on 13 October 2026 from source commit `585f9e9`. All three uploaded assets were downloaded and checked in the draft. Anonymous latest-release downloads then matched the verified local bytes. The public DMG passed signature, architecture, ticket, Gatekeeper, checksum and Finder layout checks again.
+
+Disposable Sparkle hosts used the production signed GitHub feed and public key. Build 8 was offered build 10; build 10 was reported as current. No update installation was accepted in those checks. Public delivery reports and commands are retained under `.build/verification/publication-022/`. Installation on a separate Mac, a full update installation through GitHub, Intel execution and macOS 14 runtime behavior remain unverified.
+
 ## 0.2.1 reader sign-in recovery
 
 The local 0.2.1 build 9 fix was verified on 13 October 2026. Its source tag is retained as a checkpoint; its prepared GitHub release was superseded by 0.2.2 before publication. A long-lived reader could report an expired sign-in while a newly started reader still read usage through the existing Codex account. Peek previously kept the last successful quota visible after that error.
